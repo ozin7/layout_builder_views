@@ -1,0 +1,5 @@
+name: Layout builder views
+description: Provides layout view block.
+core: 8.x
+type: module
+package: Custom
