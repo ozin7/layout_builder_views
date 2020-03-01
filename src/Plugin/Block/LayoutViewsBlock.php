@@ -8,14 +8,17 @@ use Drupal\Core\Block\BlockBase;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
+use Drupal\views\ViewExecutable;
+use Drupal\views\Views;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\views\Element\View as ViewElement;
 
 /**
  * Provides a 'LayoutViewsBlock' block.
  *
  * @Block(
  *  id = "layout_views_block",
- *  admin_label = @Translation("Layout views block"),
+ *  admin_label = @Translation("Default listing"),
  *  category = @Translation("Layout blocks"),
  * )
  */
@@ -63,10 +66,9 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
     return [
       'title' => '',
       'text' => [],
-      'views_id' => '',
+      'views' => '',
     ];
   }
-
 
   /**
    * {@inheritdoc}
@@ -77,12 +79,33 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
     $form['text'] = [
       '#type' => 'text_format',
       '#title' => $this->t('Text'),
-      '#default_value' => !empty($this->configuration['text']['value']) ?? '',
+      '#default_value' => $this->configuration['text']['value'] ?? '',
       '#format' => 'full_html',
     ];
+    $views_options = $this->getViewsOptions();
 
-    $this->getViews();
+    $form['views'] = [
+      '#type' => 'select',
+      '#required' => TRUE,
+      '#title' => $this->t('List'),
+      '#options' => $views_options,
+      '#default_value' => $this->configuration['views'] ?? '',
+    ];
+
     return $form;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function blockSubmit($form, FormStateInterface $form_state) {
+    $values = $form_state->getValues();
+    if (isset($values['views'])) {
+      $this->configuration['views'] = $values['views'];
+    }
+    if (isset($values['text'])) {
+      $this->configuration['text'] = $values['text'];
+    }
   }
 
   /**
@@ -90,14 +113,53 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
    */
   public function build() {
     $build = [];
-    $build['content']['#markup'] = 'Implement LayoutViewsBlock.';
+    [$view_id, $display_id] = explode(':', $this->configuration['views']);
+
+    if ($view = Views::getView($view_id)) {
+      $build['content'] = [
+        '#theme' => 'layout_builder_views',
+        '#views' => $this->buildViewsOutput($view, $display_id),
+        '#text' => [
+          '#type' => 'processed_text',
+          '#text' => $this->configuration['text']['value'],
+          '#format' => $this->configuration['text']['format'],
+        ],
+      ];
+    }
 
     return $build;
   }
 
-  public function getViews() {
-    $views = $this->viewsStorage->loadByProperties(['status' => TRUE]);
-    $g =6;
+  /**
+   * Build views options.
+   */
+  public function getViewsOptions() {
+    $views = Views::getEnabledViews();
+    $options = [];
+    /** @var \Drupal\views\Entity\View $view */
+    foreach ($views as $view) {
+      foreach ($view->get('display') as $display) {
+        if ($display['display_plugin'] === 'block') {
+          if (isset($display['display_options']['block_category'])) {
+            if ($display['display_options']['block_category'] === 'Layout blocks') {
+              $options[$view->id() . ':' . $display['id']] = $display['display_title'];
+            }
+          }
+        }
+      }
+    }
+
+    return $options;
+  }
+
+  /**
+   * Build views output.
+   */
+  public function buildViewsOutput(ViewExecutable $view, string $display_id, array $args = []) {
+    $output = $view->buildRenderable($display_id, $args);
+    $output = ViewElement::preRenderViewElement($output);
+
+    return $output;
   }
 
 }

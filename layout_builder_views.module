@@ -1,0 +1,15 @@
+<?php
+
+/**
+ * Implements hook_theme().
+ */
+function layout_builder_views_theme($existing, $type, $theme, $path) {
+  return [
+    'layout_builder_views' => [
+      'variables' => [
+        'views' => NULL,
+        'text' => '',
+      ],
+    ],
+  ];
+}
