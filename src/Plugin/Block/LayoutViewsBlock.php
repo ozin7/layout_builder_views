@@ -6,6 +6,7 @@ use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Block\Annotation\Block;
 use Drupal\Core\Block\BlockBase;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Url;
@@ -40,12 +41,20 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
   protected $viewsStorage;
 
   /**
+   * Module handler.
+   *
+   * @var \Drupal\Core\Extension\ModuleHandlerInterface
+   */
+  protected $moduleHandler;
+
+  /**
    * LayoutViewsBlock constructor.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manger) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manger, ModuleHandlerInterface $module_handler) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
     $this->entityTypeManager = $entity_type_manger;
     $this->viewsStorage = $this->entityTypeManager->getStorage('view');
+    $this->moduleHandler = $module_handler;
   }
 
   /**
@@ -56,7 +65,8 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
       $configuration,
       $plugin_id,
       $plugin_definition,
-      $container->get('entity_type.manager')
+      $container->get('entity_type.manager'),
+      $container->get('module_handler')
     );
   }
 
@@ -71,6 +81,7 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
       'view_more_title' => $this->t('View all'),
       'view_more_url' => '',
       'url_target' => FALSE,
+      'list_count' => '',
     ];
   }
 
@@ -115,6 +126,17 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
       '#options' => $views_options,
       '#default_value' => $this->configuration['views'] ?? '',
     ];
+    $form['list']['list_arguments'] = [
+      '#type' => 'details',
+      '#tree' => TRUE,
+      '#title' => $this->t('List arguments'),
+    ];
+    $form['list']['list_arguments']['list_count'] = [
+      '#type' => 'select',
+      '#options' => $this->getListCountOptions(),
+      '#title' => $this->t('Count'),
+      '#default_value' => $this->configuration['list_count'],
+    ];
     $form['list']['view_more'] = [
       '#type' => 'details',
       '#tree' => TRUE,
@@ -151,6 +173,9 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
     $values = $form_state->getValues();
     if (isset($values['list']['views'])) {
       $this->configuration['views'] = $values['list']['views'];
+    }
+    if (isset($values['list']['list_arguments']['list_count'])) {
+      $this->configuration['list_count'] = $values['list']['list_arguments']['list_count'];
     }
     if (isset($values['list']['view_more']['view_more_url'])) {
       $this->configuration['view_more_url'] = $values['list']['view_more']['view_more_url'];
@@ -216,7 +241,11 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
   /**
    * Build views output.
    */
-  public function buildViewsOutput(ViewExecutable $view, string $display_id, array $args = []) {
+  public function buildViewsOutput(ViewExecutable $view, string $display_id) {
+    $args = $this->getViewArgs($view, $display_id);
+    if (!empty($this->configuration['list_count'])) {
+      $view->setItemsPerPage($this->configuration['list_count']);
+    }
     $output = $view->buildRenderable($display_id, $args);
     $output = ViewElement::preRenderViewElement($output);
 
@@ -245,6 +274,29 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
     }
 
     return $output;
+  }
+
+  /**
+   * Get count options.
+   */
+  public function getListCountOptions() {
+    $options = [
+      0 => '0',
+      5 => '5',
+      10 => '10',
+      15 => '15',
+    ];
+    $this->moduleHandler->alter('layout_builder_views_count_options', $options, $this->configuration);
+
+    return $options;
+  }
+
+  /**
+   * Get view args.
+   */
+  public function getViewArgs(ViewExecutable $view, string $display_id) {
+    $args = [];
+    return $args;
   }
 
 }
