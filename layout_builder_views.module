@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * @file
+ * Module hooks.
+ */
+
+/**
  * Implements hook_theme().
  */
 function layout_builder_views_theme($existing, $type, $theme, $path) {
@@ -9,6 +14,7 @@ function layout_builder_views_theme($existing, $type, $theme, $path) {
       'variables' => [
         'views' => NULL,
         'text' => '',
+        'view_more' => '',
       ],
     ],
   ];

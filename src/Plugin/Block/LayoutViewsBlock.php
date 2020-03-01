@@ -8,6 +8,7 @@ use Drupal\Core\Block\BlockBase;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
+use Drupal\Core\Url;
 use Drupal\views\ViewExecutable;
 use Drupal\views\Views;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -67,6 +68,9 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
       'title' => '',
       'text' => [],
       'views' => '',
+      'view_more_title' => $this->t('View all'),
+      'view_more_url' => '',
+      'url_target' => FALSE,
     ];
   }
 
@@ -75,23 +79,68 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
    */
   public function blockForm($form, FormStateInterface $form_state) {
     $form = parent::blockForm($form, $form_state);
+    $form['tabs'] = [
+      '#type' => 'vertical_tabs',
+      '#default_tab' => 'edit-settings-content',
+      '#tree' => FALSE,
+    ];
 
-    $form['text'] = [
+    $form['content'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Content'),
+      '#group' => 'tabs',
+      '#weight' => 0,
+      '#tree' => TRUE,
+    ];
+    $form['content']['text'] = [
       '#type' => 'text_format',
       '#title' => $this->t('Text'),
       '#default_value' => $this->configuration['text']['value'] ?? '',
       '#format' => 'full_html',
     ];
+
+    $form['list'] = [
+      '#type' => 'details',
+      '#title' => $this->t('List'),
+      '#group' => 'tabs',
+      '#weight' => 0,
+      '#tree' => TRUE,
+    ];
     $views_options = $this->getViewsOptions();
 
-    $form['views'] = [
+    $form['list']['views'] = [
       '#type' => 'select',
       '#required' => TRUE,
       '#title' => $this->t('List'),
       '#options' => $views_options,
       '#default_value' => $this->configuration['views'] ?? '',
     ];
-
+    $form['list']['view_more'] = [
+      '#type' => 'details',
+      '#tree' => TRUE,
+      '#title' => $this->t('View more button'),
+    ];
+    $form['list']['view_more']['view_more_url'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('URL'),
+      '#default_value' => $this->configuration['view_more_url'],
+      '#attributes' => [
+        'placeholder' => $this->t('http://...'),
+      ],
+    ];
+    $form['list']['view_more']['view_more_title'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('URL'),
+      '#default_value' => $this->configuration['view_more_title'],
+      '#attributes' => [
+        'placeholder' => $this->t('http://...'),
+      ],
+    ];
+    $form['list']['view_more']['url_target'] = [
+      '#type' => 'checkbox',
+      '#default_value' => $this->configuration['url_target'],
+      '#title' => $this->t('Open in new tab'),
+    ];
     return $form;
   }
 
@@ -100,12 +149,23 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
    */
   public function blockSubmit($form, FormStateInterface $form_state) {
     $values = $form_state->getValues();
-    if (isset($values['views'])) {
-      $this->configuration['views'] = $values['views'];
+    if (isset($values['list']['views'])) {
+      $this->configuration['views'] = $values['list']['views'];
     }
-    if (isset($values['text'])) {
-      $this->configuration['text'] = $values['text'];
+    if (isset($values['list']['view_more']['view_more_url'])) {
+      $this->configuration['view_more_url'] = $values['list']['view_more']['view_more_url'];
     }
+    if (isset($values['list']['view_more']['view_more_title'])) {
+      $this->configuration['view_more_title'] = $values['list']['view_more']['view_more_title'];
+    }
+    if (isset($values['list']['view_more']['url_target'])) {
+      $this->configuration['url_target'] = $values['list']['view_more']['url_target'];
+    }
+
+    if (isset($values['content']['text'])) {
+      $this->configuration['text'] = $values['content']['text'];
+    }
+
   }
 
   /**
@@ -124,6 +184,7 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
           '#text' => $this->configuration['text']['value'],
           '#format' => $this->configuration['text']['format'],
         ],
+        '#view_more' => $this->buildViewAllButton(),
       ];
     }
 
@@ -158,6 +219,30 @@ class LayoutViewsBlock extends BlockBase implements ContainerFactoryPluginInterf
   public function buildViewsOutput(ViewExecutable $view, string $display_id, array $args = []) {
     $output = $view->buildRenderable($display_id, $args);
     $output = ViewElement::preRenderViewElement($output);
+
+    return $output;
+  }
+
+  /**
+   * Build view all button.
+   */
+  public function buildViewAllButton() {
+    $output = [];
+    if ($this->configuration['view_more_url']) {
+      $output = [
+        '#type' => 'link',
+        '#title' => $this->configuration['view_more_title'],
+        '#attributes' => [
+          'class' => [
+            'btn',
+            'btn-primary',
+            'btn-view-more',
+          ],
+          'target' => $this->configuration['url_target'] ? '_blank' : '',
+        ],
+        '#url' => Url::fromUserInput('/' . ltrim($this->configuration['view_more_url'], '/')),
+      ];
+    }
 
     return $output;
   }
