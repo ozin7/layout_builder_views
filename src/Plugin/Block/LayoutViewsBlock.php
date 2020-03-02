@@ -20,7 +20,7 @@ use Drupal\views\Element\View as ViewElement;
  *
  * @Block(
  *  id = "layout_views_block",
- *  admin_label = @Translation("Default listing"),
+ *  admin_label = @Translation("Prepared listing"),
  *  category = @Translation("Layout blocks"),
  * )
  */
